@@ -1,315 +1,197 @@
-import React, { useMemo, useState } from "react";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Loan Lab – Station A (Interest Accrual)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+  <div id="root"></div>
 
-// Loan Lab – Interactive Station Site (Starter)
-// TailwindCSS is available in the Canvas preview. No external libs required.
-// Pages: Home, Station A implemented (calculators + checks). Others are placeholders you can fill in.
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-function Nav({ current, setCurrent }) {
-  const tabs = [
-    { id: "home", label: "Home" },
-    { id: "stationA", label: "Station A: Interest" },
-    { id: "stationB", label: "Station B: Fixed vs Variable" },
-    { id: "stationC", label: "Station C: Predatory Lenders" },
-    { id: "stationD", label: "Station D: Student Loans" },
-    { id: "game", label: "Culminating Game" },
-  ];
-  return (
-    <nav className="w-full sticky top-0 z-10 bg-white/70 backdrop-blur border-b">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex gap-2 flex-wrap">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setCurrent(t.id)}
-            className={`px-3 py-1.5 rounded-full text-sm transition shadow-sm border ${
-              current === t.id
-                ? "bg-black text-white border-black"
-                : "bg-white hover:bg-gray-50 border-gray-200"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-    </nav>
-  );
-}
+  <script type="text/babel">
+    const { useState, useMemo } = React;
 
-function NumberInput({ label, value, setValue, min = 0, step = 1, suffix = "" }) {
-  return (
-    <label className="block">
-      <span className="text-sm text-gray-600">{label}</span>
-      <div className="mt-1 flex items-center gap-2">
-        <input
-          type="number"
-          value={value}
-          min={min}
-          step={step}
-          onChange={(e) => setValue(Number(e.target.value))}
-          className="w-full md:w-56 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black/30"
-        />
-        {suffix && <span className="text-gray-500 text-sm">{suffix}</span>}
-      </div>
-    </label>
-  );
-}
-
-function Select({ label, value, setValue, options }) {
-  return (
-    <label className="block">
-      <span className="text-sm text-gray-600">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="mt-1 w-full md:w-56 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black/30"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function Card({ title, children, footer }) {
-  return (
-    <div className="bg-white border rounded-2xl shadow-sm p-5">
-      {title && <h3 className="text-lg font-semibold mb-3">{title}</h3>}
-      <div>{children}</div>
-      {footer && <div className="mt-4 pt-3 border-t text-sm text-gray-600">{footer}</div>}
-    </div>
-  );
-}
-
-function formatUSD(x) {
-  return x.toLocaleString(undefined, { style: "currency", currency: "USD" });
-}
-
-function StationA() {
-  const [principal, setPrincipal] = useState(5000);
-  const [ratePct, setRatePct] = useState(6);
-  const [years, setYears] = useState(3);
-  const [compFreq, setCompFreq] = useState("annual");
-  const [monthlyPay, setMonthlyPay] = useState(100);
-
-  const r = ratePct / 100;
-  const n = compFreq === "annual" ? 1 : compFreq === "monthly" ? 12 : 365;
-
-  const simpleInterest = useMemo(() => principal * r * years, [principal, r, years]);
-  const simpleTotal = principal + simpleInterest;
-
-  // Compound formula: A = P * (1 + r/n)^(n*t)
-  const compoundTotal = useMemo(() => principal * Math.pow(1 + r / n, n * years), [principal, r, n, years]);
-  const compoundInterest = compoundTotal - principal;
-
-  // Amortization-style quick model with flat monthly payment for comparison (not exact for all loan types)
-  const months = Math.max(1, Math.round(years * 12));
-  const monthlyRateSimple = r / 12; // for illustration only
-  const monthlyRateCompound = r / 12; // same here; comp frequency toggles growth of principal when unpaid
-
-  function simulateBalance(initial, monthlyRate, monthlyPayment, totalMonths, compounding) {
-    let bal = initial;
-    for (let m = 1; m <= totalMonths; m++) {
-      // accrue interest
-      bal = bal * (1 + monthlyRate);
-      // pay
-      bal = Math.max(0, bal - monthlyPayment);
-      // simple vs compound note: we're simply showing the effect of interest-on-interest when payments are too small
-      if (compounding === "simple") {
-        // For a rough simple-interest contrast, strip the interest-on-interest effect by backing out the compounding.
-        // (Pedagogical: treat interest on original principal only)
-        const base = initial * monthlyRate; // interest on original principal only
-        bal = Math.max(0, bal + (base - (bal * 0 - 0))); // add fixed interest chunk; hacky but conveys idea
-      }
+    function NumberInput({ label, value, setValue, min = 0, step = 1, suffix = "" }) {
+      return (
+        <label className="block">
+          <span className="text-sm text-gray-600">{label}</span>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="number"
+              value={value}
+              min={min}
+              step={step}
+              onChange={(e) => setValue(Number(e.target.value))}
+              className="w-full md:w-56 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black/30"
+            />
+            {suffix && <span className="text-gray-500 text-sm">{suffix}</span>}
+          </div>
+        </label>
+      );
     }
-    return bal;
-  }
 
-  const simSimpleBalance = useMemo(
-    () => simulateBalance(principal, monthlyRateSimple, monthlyPay, months, "simple"),
-    [principal, monthlyRateSimple, monthlyPay, months]
-  );
-  const simCompoundBalance = useMemo(
-    () => simulateBalance(principal, monthlyRateCompound, monthlyPay, months, "compound"),
-    [principal, monthlyRateCompound, monthlyPay, months]
-  );
+    function Select({ label, value, setValue, options }) {
+      return (
+        <label className="block">
+          <span className="text-sm text-gray-600">{label}</span>
+          <select
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="mt-1 w-full md:w-56 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black/30"
+          >
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+      );
+    }
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-      <h2 className="text-2xl md:text-3xl font-bold">Station A: Interest Accrual Challenge</h2>
-      <p className="text-gray-600 max-w-3xl">
-        Interest is the price you pay to borrow money. With <strong>simple interest</strong>, you pay interest only on the
-        original amount (principal). With <strong>compound interest</strong>, you also pay interest on previously-added
-        interest—this makes balances grow faster when you don’t keep up with payments.
-      </p>
-
-      <Card title="Set Up Your Scenario">
-        <div className="grid md:grid-cols-3 gap-4">
-          <NumberInput label="Principal" value={principal} setValue={setPrincipal} step={100} suffix="USD" />
-          <NumberInput label="Annual Interest Rate" value={ratePct} setValue={setRatePct} step={0.25} suffix="%" />
-          <NumberInput label="Years" value={years} setValue={setYears} step={0.5} />
-          <Select
-            label="Compounding Frequency (for compound)"
-            value={compFreq}
-            setValue={setCompFreq}
-            options={[
-              { value: "annual", label: "Annual" },
-              { value: "monthly", label: "Monthly" },
-              { value: "daily", label: "Daily (365)" },
-            ]}
-          />
-          <NumberInput label="Monthly Payment (for simulation)" value={monthlyPay} setValue={setMonthlyPay} step={10} suffix="/mo" />
+    function Card({ title, children, footer }) {
+      return (
+        <div className="bg-white border rounded-2xl shadow-sm p-5">
+          {title && <h3 className="text-lg font-semibold mb-3">{title}</h3>}
+          <div>{children}</div>
+          {footer && <div className="mt-4 pt-3 border-t text-sm text-gray-600">{footer}</div>}
         </div>
-      </Card>
+      );
+    }
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card title="Simple Interest (Model)">
-          <ul className="space-y-2 text-sm">
-            <li>Formula: <code>Interest = Principal × Rate × Time</code></li>
-            <li>Principal: <strong>{formatUSD(principal)}</strong></li>
-            <li>Rate: <strong>{ratePct}%</strong> per year</li>
-            <li>Time: <strong>{years}</strong> years</li>
-            <li className="mt-2">Total Interest: <strong>{formatUSD(simpleInterest)}</strong></li>
-            <li>Total to Repay: <strong>{formatUSD(simpleTotal)}</strong></li>
-          </ul>
-        </Card>
+    function formatUSD(x) {
+      try { return x.toLocaleString(undefined, { style: "currency", currency: "USD" }); } catch { return "$" + x.toFixed(2); }
+    }
 
-        <Card title="Compound Interest (Model)">
-          <ul className="space-y-2 text-sm">
-            <li>Formula: <code>A = P × (1 + r/n)^(n×t)</code></li>
-            <li>Principal: <strong>{formatUSD(principal)}</strong></li>
-            <li>Rate: <strong>{ratePct}%</strong> per year</li>
-            <li>Compounds per year: <strong>{n}</strong></li>
-            <li>Time: <strong>{years}</strong> years</li>
-            <li className="mt-2">Total Interest: <strong>{formatUSD(compoundInterest)}</strong></li>
-            <li>Total to Repay: <strong>{formatUSD(compoundTotal)}</strong></li>
-          </ul>
-        </Card>
-      </div>
+    function StationA() {
+      const [principal, setPrincipal] = useState(5000);
+      const [ratePct, setRatePct] = useState(6);
+      const [years, setYears] = useState(3);
+      const [compFreq, setCompFreq] = useState("annual");
+      const [monthlyPay, setMonthlyPay] = useState(100);
 
-      <Card title="Model the Math – Step by Step (Yearly Compounding Example)">
-        <ol className="list-decimal pl-6 space-y-2 text-sm">
-          <li>Start: <strong>{formatUSD(principal)}</strong></li>
-          <li>End of Year 1: add {ratePct}% → {formatUSD(principal * (1 + r))}</li>
-          <li>End of Year 2: add {ratePct}% → {formatUSD(principal * Math.pow(1 + r, 2))}</li>
-          <li>End of Year 3: add {ratePct}% → {formatUSD(principal * Math.pow(1 + r, 3))}</li>
-        </ol>
-        <p className="mt-3 text-gray-600 text-sm">(Use the compounding frequency selector above to explore how changing from annual to monthly or daily alters the total.)</p>
-      </Card>
+      const r = ratePct / 100;
+      const n = compFreq === "annual" ? 1 : compFreq === "monthly" ? 12 : 365;
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card title="What if I only pay this much each month? (Simulation)">
-          <p className="text-sm text-gray-600 mb-2">This quick simulation compares balances if your monthly payment is too small.</p>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="font-semibold mb-1">Simple (contrast)</div>
-              <div className="text-gray-600">Estimated balance after {months} months</div>
-              <div className="text-xl font-bold">{formatUSD(simSimpleBalance)}</div>
-            </div>
-            <div>
-              <div className="font-semibold mb-1">Compound</div>
-              <div className="text-gray-600">Estimated balance after {months} months</div>
-              <div className="text-xl font-bold">{formatUSD(simCompoundBalance)}</div>
-            </div>
-          </div>
-          <div className="mt-3 text-xs text-gray-500">Note: This is an educational illustration, not a precise amortization. It shows how interest-on-interest can keep balances from shrinking when payments are too small.</div>
-        </Card>
+      const simpleInterest = useMemo(() => principal * r * years, [principal, r, years]);
+      const simpleTotal = principal + simpleInterest;
 
-        <Card title="Quick Checks">
-          <ol className="list-decimal pl-6 space-y-3 text-sm">
-            <li>Which total is bigger: simple or compound? Why?</li>
-            <li>How does increasing compounding frequency (annual → monthly → daily) affect the total?</li>
-            <li>For the same loan, what happens if you increase your monthly payment?</li>
-          </ol>
-        </Card>
-      </div>
+      const compoundTotal = useMemo(() => principal * Math.pow(1 + r / n, n * years), [principal, r, n, years]);
+      const compoundInterest = compoundTotal - principal;
 
-      <Card title="Reflection (Write 2–3 sentences)">
-        <p className="text-sm">Why might compound interest be especially dangerous for student loans or credit cards? What are two smart strategies to keep interest costs down?</p>
-      </Card>
-    </div>
-  );
-}
+      const months = Math.max(1, Math.round(years * 12));
+      const monthlyRateSimple = r / 12;
+      const monthlyRateCompound = r / 12;
 
-function Placeholder({ title, children }) {
-  return (
-    <div className="max-w-5xl mx-auto px-4 py-10 space-y-4">
-      <h2 className="text-2xl md:text-3xl font-bold">{title}</h2>
-      <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-xl">
-        <p className="font-medium">Coming next!</p>
-        <p className="text-sm">We'll add interactive scenarios, calculators, and spot-the-red-flag activities here.</p>
-      </div>
-      {children}
-    </div>
-  );
-}
+      function simulateBalance(initial, monthlyRate, monthlyPayment, totalMonths, compounding) {
+        let bal = initial;
+        for (let m = 1; m <= totalMonths; m++) {
+          bal = bal * (1 + monthlyRate);
+          bal = Math.max(0, bal - monthlyPayment);
+          if (compounding === "simple") {
+            const base = initial * monthlyRate;
+            bal = Math.max(0, bal + base);
+          }
+        }
+        return bal;
+      }
 
-export default function App() {
-  const [current, setCurrent] = useState("stationA");
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Nav current={current} setCurrent={setCurrent} />
-      {current === "home" && (
-        <div className="max-w-5xl mx-auto px-4 py-10 space-y-6">
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Loan Lab</h1>
+      const simSimpleBalance = useMemo(() => simulateBalance(principal, monthlyRateSimple, monthlyPay, months, "simple"), [principal, monthlyRateSimple, monthlyPay, months]);
+      const simCompoundBalance = useMemo(() => simulateBalance(principal, monthlyRateCompound, monthlyPay, months, "compound"), [principal, monthlyRateCompound, monthlyPay, months]);
+
+      return (
+        <div className="min-h-screen bg-gray-50 max-w-6xl mx-auto px-4 py-8 space-y-6">
+          <h2 className="text-2xl md:text-3xl font-bold">Station A: Interest Accrual Challenge</h2>
           <p className="text-gray-600 max-w-3xl">
-            Explore borrowing fundamentals through interactive stations. Adjust numbers, test scenarios, and see
-            how small choices add up over time.
+            Interest is the price you pay to borrow money. With <strong>simple interest</strong>, you pay interest only on the original amount (principal). With <strong>compound interest</strong>, you also pay interest on previously-added interest—this makes balances grow faster when you don’t keep up with payments.
           </p>
-          <div className="grid md:grid-cols-2 gap-4">
-            <Card title="Station A: Interest Accrual">
-              <p className="text-sm text-gray-600">Simple vs. compound interest with adjustable sliders and step-by-step math.</p>
+
+          <Card title="Set Up Your Scenario">
+            <div className="grid md:grid-cols-3 gap-4">
+              <NumberInput label="Principal" value={principal} setValue={setPrincipal} step={100} suffix="USD" />
+              <NumberInput label="Annual Interest Rate" value={ratePct} setValue={setRatePct} step={0.25} suffix="%" />
+              <NumberInput label="Years" value={years} setValue={setYears} step={0.5} />
+              <Select label="Compounding Frequency (for compound)" value={compFreq} setValue={setCompFreq} options={[{ value: "annual", label: "Annual" },{ value: "monthly", label: "Monthly" },{ value: "daily", label: "Daily (365)" }]} />
+              <NumberInput label="Monthly Payment (for simulation)" value={monthlyPay} setValue={setMonthlyPay} step={10} suffix="/mo" />
+            </div>
+          </Card>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card title="Simple Interest (Model)">
+              <ul className="space-y-2 text-sm">
+                <li>Formula: <code>Interest = Principal × Rate × Time</code></li>
+                <li>Principal: <strong>{formatUSD(principal)}</strong></li>
+                <li>Rate: <strong>{ratePct}%</strong> per year</li>
+                <li>Time: <strong>{years}</strong> years</li>
+                <li className="mt-2">Total Interest: <strong>{formatUSD(simpleInterest)}</strong></li>
+                <li>Total to Repay: <strong>{formatUSD(simpleTotal)}</strong></li>
+              </ul>
             </Card>
-            <Card title="Station B: Fixed vs Variable">
-              <p className="text-sm text-gray-600">Compare payment stability, what-if rate hikes, and long-run cost.</p>
-            </Card>
-            <Card title="Station C: Predatory Lenders">
-              <p className="text-sm text-gray-600">Spot red flags, decode APR vs fees, and practice safer choices.</p>
-            </Card>
-            <Card title="Station D: Student Loans">
-              <p className="text-sm text-gray-600">Match profiles to repayment plans and see lifetime costs.</p>
+
+            <Card title="Compound Interest (Model)">
+              <ul className="space-y-2 text-sm">
+                <li>Formula: <code>A = P × (1 + r/n)^(n×t)</code></li>
+                <li>Principal: <strong>{formatUSD(principal)}</strong></li>
+                <li>Rate: <strong>{ratePct}%</strong> per year</li>
+                <li>Compounds per year: <strong>{n}</strong></li>
+                <li>Time: <strong>{years}</strong> years</li>
+                <li className="mt-2">Total Interest: <strong>{formatUSD(compoundInterest)}</strong></li>
+                <li>Total to Repay: <strong>{formatUSD(compoundTotal)}</strong></li>
+              </ul>
             </Card>
           </div>
-          <Card title="Culminating Game: Loan Survivor">
-            <p className="text-sm text-gray-600">Teams compete to make better borrowing choices and survive debt traps.</p>
+
+          <Card title="Model the Math – Step by Step (Yearly Compounding Example)">
+            <ol className="list-decimal pl-6 space-y-2 text-sm">
+              <li>Start: <strong>{formatUSD(principal)}</strong></li>
+              <li>End of Year 1: add {ratePct}% → {formatUSD(principal * (1 + r))}</li>
+              <li>End of Year 2: add {ratePct}% → {formatUSD(principal * Math.pow(1 + r, 2))}</li>
+              <li>End of Year 3: add {ratePct}% → {formatUSD(principal * Math.pow(1 + r, 3))}</li>
+            </ol>
+            <p className="mt-3 text-gray-600 text-sm">(Use the compounding frequency selector above to explore how changing from annual to monthly or daily alters the total.)</p>
+          </Card>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card title="What if I only pay this much each month? (Simulation)">
+              <p className="text-sm text-gray-600 mb-2">This quick simulation compares balances if your monthly payment is too small.</p>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="font-semibold mb-1">Simple (contrast)</div>
+                  <div className="text-gray-600">Estimated balance after {months} months</div>
+                  <div className="text-xl font-bold">{formatUSD(simSimpleBalance)}</div>
+                </div>
+                <div>
+                  <div className="font-semibold mb-1">Compound</div>
+                  <div className="text-gray-600">Estimated balance after {months} months</div>
+                  <div className="text-xl font-bold">{formatUSD(simCompoundBalance)}</div>
+                </div>
+              </div>
+              <div className="mt-3 text-xs text-gray-500">Note: This is an educational illustration, not a precise amortization. It shows how interest-on-interest can keep balances from shrinking when payments are too small.</div>
+            </Card>
+
+            <Card title="Quick Checks">
+              <ol className="list-decimal pl-6 space-y-3 text-sm">
+                <li>Which total is bigger: simple or compound? Why?</li>
+                <li>How does increasing compounding frequency (annual → monthly → daily) affect the total?</li>
+                <li>For the same loan, what happens if you increase your monthly payment?</li>
+              </ol>
+            </Card>
+          </div>
+
+          <Card title="Reflection (Write 2–3 sentences)">
+            <p className="text-sm">Why might compound interest be especially dangerous for student loans or credit cards? What are two smart strategies to keep interest costs down?</p>
           </Card>
         </div>
-      )}
-      {current === "stationA" && <StationA />}
-      {current === "stationB" && (
-        <Placeholder title="Station B: Fixed vs Variable">
-          <ul className="list-disc pl-6 text-sm text-gray-700">
-            <li>Mortgage comparison (fixed vs ARM) with shock scenarios (+2%, +4%).</li>
-            <li>Graph monthly payment vs. years for each path.</li>
-          </ul>
-        </Placeholder>
-      )}
-      {current === "stationC" && (
-        <Placeholder title="Station C: Predatory Lenders">
-          <ul className="list-disc pl-6 text-sm text-gray-700">
-            <li>Mock ads with clickable red flags and instant feedback.</li>
-            <li>APR vs. "fees" mini-quiz.</li>
-          </ul>
-        </Placeholder>
-      )}
-      {current === "stationD" && (
-        <Placeholder title="Station D: Student Loans">
-          <ul className="list-disc pl-6 text-sm text-gray-700">
-            <li>Repayment plan chooser with income inputs.</li>
-            <li>Lifetime cost & time-to-payoff estimates.</li>
-          </ul>
-        </Placeholder>
-      )}
-      {current === "game" && (
-        <Placeholder title="Culminating Game: Loan Survivor">
-          <ul className="list-disc pl-6 text-sm text-gray-700">
-            <li>Team profile cards (income, savings, credit score).</li>
-            <li>Round-based choices update a shared scoreboard.</li>
-          </ul>
-        </Placeholder>
-      )}
-      <footer className="py-10 text-center text-xs text-gray-500">© {new Date().getFullYear()} Loan Lab (teacher edition)</footer>
-    </div>
-  );
-}
+      );
+    }
+
+    function App() { return <StationA />; }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
