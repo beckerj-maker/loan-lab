@@ -153,29 +153,46 @@
       };
     }
 
+    // Student-friendly outcome explainer
+    function insightMessage(simSimple, simCompound) {
+      const msgs = [];
+      if (simCompound.negativeAmortization) {
+        msgs.push("Your monthly payment is too small to even cover interest (negative amortization), so the compound loan’s balance grows.");
+      }
+      const diff = simCompound.totalInterest - simSimple.totalInterest;
+      if (Math.abs(diff) < 1e-2) {
+        msgs.push("Both models show similar total interest for these inputs.");
+      } else if (diff > 0) {
+        msgs.push("Compound shows higher total interest than the simple-contrast model because interest accrues on a changing balance and your payment is relatively low, letting more interest build up.");
+      } else {
+        msgs.push("Compound shows lower total interest than the simple-contrast model because payments reduce the balance quickly; interest is charged on a shrinking balance, while the simple-contrast model always charges interest on the original principal.");
+      }
+      msgs.push("Reminder: the simple panel is a teaching contrast, not a real loan type; real installment loans behave like the compound (amortized) panel.");
+      return msgs;
+    }
+
     /*** Main component ***/
     function StationA() {
       const [principal, setPrincipal] = useState(5000);
       const [ratePct, setRatePct] = useState(6);
       const [years, setYears] = useState(3);
-      const [compFreq, setCompFreq] = useState("annual"); // used for the closed-form compound model below
+      const [compFreq, setCompFreq] = useState("annual"); // for closed-form model
       const [monthlyPay, setMonthlyPay] = useState(100);
 
       const r = ratePct / 100;
       const n = compFreq === "annual" ? 1 : compFreq === "monthly" ? 12 : 365;
 
-      // Simple-interest (closed-form, not amortized)
+      // Closed-form models (for the formulas section)
       const simpleInterest = useMemo(() => principal * r * years, [principal, r, years]);
       const simpleTotal = principal + simpleInterest;
 
-      // Compound-interest (closed-form, not amortized) — for the formulas panel
       const compoundTotal = useMemo(
         () => principal * Math.pow(1 + r / n, n * years),
         [principal, r, n, years]
       );
       const compoundInterest = compoundTotal - principal;
 
-      // Simulations (educational, month-by-month)
+      // Simulations (month-by-month)
       const months = Math.max(1, Math.round(years * 12));
 
       const simCompound = useMemo(
@@ -295,6 +312,15 @@
               </ol>
             </Card>
           </div>
+
+          <!-- Outcome Insight -->
+          <Card title="Outcome Insight">
+            <ul className="list-disc pl-6 text-sm text-gray-700">
+              {insightMessage(simSimple, simCompound).map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+          </Card>
 
           <Card title="Reflection (Write 2–3 sentences)">
             <p className="text-sm">
