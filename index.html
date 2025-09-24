@@ -4,11 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Loan Lab – Station A (Interest Accrual)</title>
+  <!-- Tailwind via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50">
   <div id="root"></div>
 
+  <!-- React 18 UMD and Babel for in-browser JSX transform -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -16,6 +18,7 @@
   <script type="text/babel">
     const { useState, useMemo } = React;
 
+    /*** UI helpers ***/
     function NumberInput({ label, value, setValue, min = 0, step = 1, suffix = "" }) {
       return (
         <label className="block">
@@ -45,7 +48,9 @@
             className="mt-1 w-full md:w-56 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black/30"
           >
             {options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
             ))}
           </select>
         </label>
@@ -63,50 +68,133 @@
     }
 
     function formatUSD(x) {
-      try { return x.toLocaleString(undefined, { style: "currency", currency: "USD" }); } catch { return "$" + x.toFixed(2); }
+      try { return x.toLocaleString(undefined, { style: "currency", currency: "USD" }); }
+      catch { return "$" + Number(x || 0).toFixed(2); }
     }
 
+    /*** Correct simulations ***/
+    // True monthly amortization with payment applied interest-first (typical installment loan)
+    function simulateCompoundAmortization(principal, annualRate, monthlyPayment, months) {
+      const i = annualRate / 12; // monthly rate as decimal
+      let bal = principal;
+      let totalInterest = 0;
+      let negAm = false;
+
+      for (let m = 1; m <= months; m++) {
+        const interest = bal * i;
+        totalInterest += interest;
+
+        const principalPayment = monthlyPayment - interest;
+        if (principalPayment < 0) {
+          // Payment doesn't cover interest → unpaid interest adds to balance (negative amortization)
+          negAm = true;
+          bal = bal + (interest - monthlyPayment);
+        } else {
+          bal = Math.max(0, bal + interest - monthlyPayment);
+        }
+
+        if (bal <= 0) {
+          return {
+            balance: 0,
+            totalInterest,
+            monthsElapsed: m,
+            negativeAmortization: negAm,
+            paidOff: true
+          };
+        }
+      }
+      return {
+        balance: Math.max(0, bal),
+        totalInterest,
+        monthsElapsed: months,
+        negativeAmortization: negAm,
+        paidOff: false
+      };
+    }
+
+    // Pedagogical "simple-interest contrast": interest on ORIGINAL principal only (no interest-on-interest)
+    function simulateSimpleContrast(principal, annualRate, monthlyPayment, months) {
+      const i = annualRate / 12; // monthly rate
+      let remainingPrincipal = principal;
+      let accruedInterest = 0;
+      let totalInterest = 0;
+
+      for (let m = 1; m <= months; m++) {
+        // Grow interest based ONLY on original principal
+        accruedInterest += principal * i;
+
+        // Payment applies to interest first, then principal
+        let pay = monthlyPayment;
+
+        const interestPaid = Math.min(pay, accruedInterest);
+        pay -= interestPaid;
+        accruedInterest -= interestPaid;
+        totalInterest += interestPaid;
+
+        remainingPrincipal = Math.max(0, remainingPrincipal - pay);
+
+        if (remainingPrincipal === 0 && accruedInterest === 0) {
+          return {
+            balance: 0,
+            totalInterest,
+            monthsElapsed: m,
+            negativeAmortization: false,
+            paidOff: true
+          };
+        }
+      }
+
+      return {
+        balance: remainingPrincipal + accruedInterest,
+        totalInterest,
+        monthsElapsed: months,
+        negativeAmortization: false,
+        paidOff: remainingPrincipal === 0 && accruedInterest === 0
+      };
+    }
+
+    /*** Main component ***/
     function StationA() {
       const [principal, setPrincipal] = useState(5000);
       const [ratePct, setRatePct] = useState(6);
       const [years, setYears] = useState(3);
-      const [compFreq, setCompFreq] = useState("annual");
+      const [compFreq, setCompFreq] = useState("annual"); // used for the closed-form compound model below
       const [monthlyPay, setMonthlyPay] = useState(100);
 
       const r = ratePct / 100;
       const n = compFreq === "annual" ? 1 : compFreq === "monthly" ? 12 : 365;
 
+      // Simple-interest (closed-form, not amortized)
       const simpleInterest = useMemo(() => principal * r * years, [principal, r, years]);
       const simpleTotal = principal + simpleInterest;
 
-      const compoundTotal = useMemo(() => principal * Math.pow(1 + r / n, n * years), [principal, r, n, years]);
+      // Compound-interest (closed-form, not amortized) — for the formulas panel
+      const compoundTotal = useMemo(
+        () => principal * Math.pow(1 + r / n, n * years),
+        [principal, r, n, years]
+      );
       const compoundInterest = compoundTotal - principal;
 
+      // Simulations (educational, month-by-month)
       const months = Math.max(1, Math.round(years * 12));
-      const monthlyRateSimple = r / 12;
-      const monthlyRateCompound = r / 12;
 
-      function simulateBalance(initial, monthlyRate, monthlyPayment, totalMonths, compounding) {
-        let bal = initial;
-        for (let m = 1; m <= totalMonths; m++) {
-          bal = bal * (1 + monthlyRate);
-          bal = Math.max(0, bal - monthlyPayment);
-          if (compounding === "simple") {
-            const base = initial * monthlyRate;
-            bal = Math.max(0, bal + base);
-          }
-        }
-        return bal;
-      }
+      const simCompound = useMemo(
+        () => simulateCompoundAmortization(principal, r, monthlyPay, months),
+        [principal, r, monthlyPay, months]
+      );
 
-      const simSimpleBalance = useMemo(() => simulateBalance(principal, monthlyRateSimple, monthlyPay, months, "simple"), [principal, monthlyRateSimple, monthlyPay, months]);
-      const simCompoundBalance = useMemo(() => simulateBalance(principal, monthlyRateCompound, monthlyPay, months, "compound"), [principal, monthlyRateCompound, monthlyPay, months]);
+      const simSimple = useMemo(
+        () => simulateSimpleContrast(principal, r, monthlyPay, months),
+        [principal, r, monthlyPay, months]
+      );
 
       return (
         <div className="min-h-screen bg-gray-50 max-w-6xl mx-auto px-4 py-8 space-y-6">
           <h2 className="text-2xl md:text-3xl font-bold">Station A: Interest Accrual Challenge</h2>
           <p className="text-gray-600 max-w-3xl">
-            Interest is the price you pay to borrow money. With <strong>simple interest</strong>, you pay interest only on the original amount (principal). With <strong>compound interest</strong>, you also pay interest on previously-added interest—this makes balances grow faster when you don’t keep up with payments.
+            Interest is the price you pay to borrow money. With <strong>simple interest</strong>, you pay interest only on the
+            original amount (principal). With <strong>compound interest</strong>, you also pay interest on previously-added
+            interest—this makes balances grow faster when you don’t keep up with payments.
           </p>
 
           <Card title="Set Up Your Scenario">
@@ -114,13 +202,22 @@
               <NumberInput label="Principal" value={principal} setValue={setPrincipal} step={100} suffix="USD" />
               <NumberInput label="Annual Interest Rate" value={ratePct} setValue={setRatePct} step={0.25} suffix="%" />
               <NumberInput label="Years" value={years} setValue={setYears} step={0.5} />
-              <Select label="Compounding Frequency (for compound)" value={compFreq} setValue={setCompFreq} options={[{ value: "annual", label: "Annual" },{ value: "monthly", label: "Monthly" },{ value: "daily", label: "Daily (365)" }]} />
+              <Select
+                label="Compounding Frequency (for compound model)"
+                value={compFreq}
+                setValue={setCompFreq}
+                options={[
+                  { value: "annual", label: "Annual" },
+                  { value: "monthly", label: "Monthly" },
+                  { value: "daily", label: "Daily (365)" },
+                ]}
+              />
               <NumberInput label="Monthly Payment (for simulation)" value={monthlyPay} setValue={setMonthlyPay} step={10} suffix="/mo" />
             </div>
           </Card>
 
           <div className="grid md:grid-cols-2 gap-6">
-            <Card title="Simple Interest (Model)">
+            <Card title="Simple Interest (Closed-Form Model)">
               <ul className="space-y-2 text-sm">
                 <li>Formula: <code>Interest = Principal × Rate × Time</code></li>
                 <li>Principal: <strong>{formatUSD(principal)}</strong></li>
@@ -131,7 +228,7 @@
               </ul>
             </Card>
 
-            <Card title="Compound Interest (Model)">
+            <Card title="Compound Interest (Closed-Form Model)">
               <ul className="space-y-2 text-sm">
                 <li>Formula: <code>A = P × (1 + r/n)^(n×t)</code></li>
                 <li>Principal: <strong>{formatUSD(principal)}</strong></li>
@@ -151,25 +248,43 @@
               <li>End of Year 2: add {ratePct}% → {formatUSD(principal * Math.pow(1 + r, 2))}</li>
               <li>End of Year 3: add {ratePct}% → {formatUSD(principal * Math.pow(1 + r, 3))}</li>
             </ol>
-            <p className="mt-3 text-gray-600 text-sm">(Use the compounding frequency selector above to explore how changing from annual to monthly or daily alters the total.)</p>
+            <p className="mt-3 text-gray-600 text-sm">
+              (Use the compounding frequency selector above to explore how changing from annual to monthly or daily alters the total.)
+            </p>
           </Card>
 
           <div className="grid md:grid-cols-2 gap-6">
-            <Card title="What if I only pay this much each month? (Simulation)">
-              <p className="text-sm text-gray-600 mb-2">This quick simulation compares balances if your monthly payment is too small.</p>
+            <Card title="What if I only pay this much each month? (Simulations)">
+              <p className="text-sm text-gray-600 mb-2">
+                These simulations compare a simple-interest contrast vs a typical amortized (compound) loan.
+              </p>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <div className="font-semibold mb-1">Simple (contrast)</div>
                   <div className="text-gray-600">Estimated balance after {months} months</div>
-                  <div className="text-xl font-bold">{formatUSD(simSimpleBalance)}</div>
+                  <div className="text-xl font-bold">{formatUSD(simSimple.balance)}</div>
+                  <div className="text-gray-600 mt-1">Total interest paid: {formatUSD(simSimple.totalInterest)}</div>
+                  {simSimple.paidOff && (
+                    <div className="text-green-700 mt-1">Paid off in {simSimple.monthsElapsed} months</div>
+                  )}
                 </div>
                 <div>
-                  <div className="font-semibold mb-1">Compound</div>
+                  <div className="font-semibold mb-1">Compound (amortized)</div>
                   <div className="text-gray-600">Estimated balance after {months} months</div>
-                  <div className="text-xl font-bold">{formatUSD(simCompoundBalance)}</div>
+                  <div className="text-xl font-bold">{formatUSD(simCompound.balance)}</div>
+                  <div className="text-gray-600 mt-1">Total interest paid: {formatUSD(simCompound.totalInterest)}</div>
+                  {simCompound.negativeAmortization && (
+                    <div className="text-amber-700 mt-1">Warning: payment is too small (negative amortization)</div>
+                  )}
+                  {simCompound.paidOff && (
+                    <div className="text-green-700 mt-1">Paid off in {simCompound.monthsElapsed} months</div>
+                  )}
                 </div>
               </div>
-              <div className="mt-3 text-xs text-gray-500">Note: This is an educational illustration, not a precise amortization. It shows how interest-on-interest can keep balances from shrinking when payments are too small.</div>
+              <div className="mt-3 text-xs text-gray-500">
+                Note: “Simple (contrast)” shows interest on the original principal only (no interest-on-interest) to highlight the difference.
+                “Compound (amortized)” models a typical installment loan with monthly interest applied to the current balance.
+              </div>
             </Card>
 
             <Card title="Quick Checks">
@@ -182,7 +297,10 @@
           </div>
 
           <Card title="Reflection (Write 2–3 sentences)">
-            <p className="text-sm">Why might compound interest be especially dangerous for student loans or credit cards? What are two smart strategies to keep interest costs down?</p>
+            <p className="text-sm">
+              Why might compound interest be especially dangerous for student loans or credit cards?
+              What are two smart strategies to keep interest costs down?
+            </p>
           </Card>
         </div>
       );
