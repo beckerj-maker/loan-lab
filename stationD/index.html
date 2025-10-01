@@ -21,8 +21,18 @@
 
     <!-- Inputs -->
     <div class="bg-white border rounded-2xl shadow-sm p-5">
-      <h2 class="text-lg font-semibold mb-3">Set Your Scenario</h2>
-      <div class="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div class="flex items-center justify-between gap-4 flex-wrap">
+        <h2 class="text-lg font-semibold">Set Your Scenario</h2>
+        <div class="flex items-center gap-2">
+          <!-- Demo button -->
+          <button id="demoBtn"
+                  class="px-3 py-1.5 text-sm rounded-lg border bg-white hover:bg-gray-50">
+            Set Demo Scenario
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-3 grid md:grid-cols-3 lg:grid-cols-5 gap-4">
         <label class="block">
           <span class="text-sm text-gray-700">Loan Balance</span>
           <input id="amount" type="number" value="50000" step="500"
@@ -226,10 +236,24 @@
       });
     }
 
+    // Demo scenario button
+    document.getElementById('demoBtn').addEventListener('click', () => {
+      // You can tweak these demo values:
+      el('amount').value = 50000;   // $50,000 balance
+      el('apr').value = 6.8;        // 6.8% APR
+      el('income').value = 35000;   // $35,000 annual income
+      el('capPct').value = 10;      // 10% cap
+      el('years').value = 10;       // show 10 years
+      update();
+    });
+
     // Wire inputs
-    ['amount','apr','income','capPct','years'].forEach(id=> {
+    ['amount','apr','income','capPct','years'].forEach(id=>{
       document.getElementById(id).addEventListener('input', update);
     });
+
+    // Initial render
+    const ctx2 = document.getElementById('balanceChart').getContext('2d');
     update();
   </script>
 </body>
