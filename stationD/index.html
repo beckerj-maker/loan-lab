@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Loan Lab – Station D (Standard vs Income-Based)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50">
+  <div class="max-w-6xl mx-auto px-4 py-8 space-y-6">
+    <header class="space-y-2">
+      <h1 class="text-2xl md:text-3xl font-bold">Station D: Standard vs. Income-Based Repayment</h1>
+      <p class="text-gray-600 max-w-3xl">
+        Compare a <strong>Standard 10-year plan</strong> to an <strong>Income-Based plan</strong> where the payment is capped
+        at a percent of your income (default 10%). Notice how small IBR payments can lead to
+        <em>negative amortization</em> (balance growing because payments don’t cover interest).
+        <span class="text-xs block mt-1">Note: Real IBR uses “discretionary income” and family size; this model uses a simple cap on gross income for teaching.</span>
+      </p>
+    </header>
+
+    <!-- Inputs -->
+    <div class="bg-white border rounded-2xl shadow-sm p-5">
+      <h2 class="text-lg font-semibold mb-3">Set Your Scenario</h2>
+      <div class="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <label class="block">
+          <span class="text-sm text-gray-700">Loan Balance</span>
+          <input id="amount" type="number" value="50000" step="500"
+                 class="mt-1 w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/30"/>
+        </label>
+        <label class="block">
+          <span class="text-sm text-gray-700">APR (interest rate)</span>
+          <input id="apr" type="number" value="6.8" step="0.1"
+                 class="mt-1 w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/30"/>
+        </label>
+        <label class="block">
+          <span class="text-sm text-gray-700">Borrower Income (annual)</span>
+          <input id="income" type="number" value="35000" step="500"
+                 class="mt-1 w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/30"/>
+        </label>
+        <label class="block">
+          <span class="text-sm text-gray-700">IBR Cap (% of income)</span>
+          <input id="capPct" type="number" value="10" step="0.5"
+                 class="mt-1 w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/30"/>
+        </label>
+        <label class="block">
+          <span class="text-sm text-gray-700">Show Years</span>
+          <input id="years" type="number" value="10" step="1" min="1" max="30"
+                 class="mt-1 w-full px-3 py-2 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-black/30"/>
+        </label>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="bg-white border rounded-2xl shadow-sm p-5" id="standardCard"></div>
+      <div class="bg-white border rounded-2xl shadow-sm p-5" id="ibrCard"></div>
+    </div>
+
+    <!-- Differences -->
+    <div class="bg-white border rounded-2xl shadow-sm p-5" id="diffCard"></div>
+
+    <!-- Chart -->
+    <div class="bg-white border rounded-2xl shadow-sm p-5">
+      <h2 class="text-lg font-semibold mb-3">Balance Over Time</h2>
+      <p class="text-sm text-gray-600 mb-2">
+        Standard (solid) pays down to $0 by 10 years. Income-Based (dashed) may shrink slowly or even grow if payments
+        don’t cover monthly interest.
+      </p>
+      <canvas id="balanceChart" height="120"></canvas>
+    </div>
+
+    <footer class="py-8 text-center text-xs text-gray-500">
+      © <script>document.write(new Date().getFullYear())</script> Loan Lab — Station D
+    </footer>
+  </div>
+
+  <script>
+    // ---------- Helpers ----------
+    const fmt = (x) => x.toLocaleString(undefined,{style:'currency',currency:'USD'});
+    function monthlyPaymentAmortized(P, ratePct, years){
+      const n = Math.round(years*12);
+      const r = ratePct/100/12;
+      if(n<=0) return 0;
+      if(r===0) return P/n;
+      return P * r / (1 - Math.pow(1+r, -n));
+    }
+    function simulateStandard(P, ratePct, years){
+      const n = Math.round(years*12), r = ratePct/100/12;
+      const pay = monthlyPaymentAmortized(P, ratePct, years);
+      let bal = P, totalInt = 0;
+      const series = [bal];
+      for(let m=1;m<=n;m++){
+        const interest = bal * r;
+        const principal = Math.min(pay - interest, bal);
+        totalInt += interest;
+        bal = Math.max(0, bal - principal);
+        series.push(bal);
+        if(bal<=0) { // pad flat zeros to length n
+          while(series.length <= n) series.push(0);
+          break;
+        }
+      }
+      return {payment: pay, totalInterest: totalInt, totalPaid: pay*n, series, months: n, paidOff: series[series.length-1]===0};
+    }
+    function simulateIBR(P, ratePct, years, incomeAnnual, capPct){
+      const n = Math.round(years*12), r = ratePct/100/12;
+      const monthlyCap = (incomeAnnual * (capPct/100)) / 12;
+      let bal = P, totalInt = 0, negAm = false;
+      const series = [bal];
+      for(let m=1;m<=n;m++){
+        const interest = bal * r;
+        totalInt += interest;
+        const principalPay = monthlyCap - interest;
+        if(principalPay < 0) { negAm = true; }
+        bal = Math.max(0, bal + interest - monthlyCap);
+        series.push(bal);
+      }
+      return {
+        payment: monthlyCap,
+        totalInterest: totalInt,
+        totalPaid: monthlyCap*n,
+        endingBalance: series[series.length-1],
+        negativeAmortization: negAm,
+        series,
+        months: n
+      };
+    }
+
+    // ---------- UI / Chart ----------
+    const el = (id)=>document.getElementById(id);
+    const ctx = document.getElementById('balanceChart').getContext('2d');
+    let chart;
+
+    function update(){
+      const P = Number(el('amount').value);
+      const apr = Number(el('apr').value);
+      const income = Number(el('income').value);
+      const capPct = Number(el('capPct').value);
+      const years = Number(el('years').value);
+
+      const std = simulateStandard(P, apr, 10); // Standard is fixed at 10-year amortization
+      const ibr = simulateIBR(P, apr, years, income, capPct);
+
+      // Results cards
+      el('standardCard').innerHTML = `
+        <h2 class="text-lg font-semibold mb-2">Standard Repayment (10 years)</h2>
+        <ul class="text-sm space-y-1">
+          <li>Monthly payment: <strong class="text-blue-700">${fmt(std.payment)}</strong></li>
+          <li>Total paid (10 yrs): <strong>${fmt(std.totalPaid)}</strong></li>
+          <li>Total interest: <strong>${fmt(std.totalInterest)}</strong></li>
+          <li>Status at year 10: <strong>${std.paidOff ? "Paid in full" : "Not paid off"}</strong></li>
+        </ul>
+      `;
+      el('ibrCard').innerHTML = `
+        <h2 class="text-lg font-semibold mb-2">Income-Based Repayment (cap ${capPct}% of income)</h2>
+        <ul class="text-sm space-y-1">
+          <li>Monthly payment: <strong class="text-amber-700">${fmt(ibr.payment)}</strong></li>
+          <li>Total paid (${years} yrs): <strong>${fmt(ibr.totalPaid)}</strong></li>
+          <li>Total interest accrued: <strong>${fmt(ibr.totalInterest)}</strong></li>
+          <li>Ending balance after ${years} yrs: <strong class="${ibr.negativeAmortization?'text-red-700':'text-green-700'}">${fmt(ibr.endingBalance)}</strong></li>
+          ${ibr.negativeAmortization ? '<li class="text-red-700 text-sm">Warning: Negative amortization (payment < monthly interest).</li>' : ''}
+        </ul>
+      `;
+
+      const diffInterest = ibr.totalInterest - std.totalInterest;
+      el('diffCard').innerHTML = `
+        <h2 class="text-lg font-semibold mb-2">What’s the big picture?</h2>
+        <div class="grid md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <div class="text-gray-600">Monthly payment difference</div>
+            <div class="text-xl font-semibold">${fmt(ibr.payment - std.payment)}</div>
+          </div>
+          <div>
+            <div class="text-gray-600">Total interest: IBR vs Standard (for shown years)</div>
+            <div class="text-xl font-semibold ${diffInterest>=0?'text-red-700':'text-green-700'}">
+              ${diffInterest>=0?'+':''}${fmt(diffInterest)}
+            </div>
+          </div>
+          <div>
+            <div class="text-gray-600">Key idea</div>
+            <div>
+              ${ibr.negativeAmortization
+                ? 'Because IBR payments are capped and don’t cover interest, the balance grows over time.'
+                : 'If IBR payments exceed monthly interest, the balance shrinks—just more slowly than Standard.'}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Chart (balances)
+      const labels = Array.from({length: Math.max(std.series.length, ibr.series.length)}, (_,i)=> i);
+      if(chart){ chart.destroy(); }
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Standard (balance)',
+              data: std.series,
+              borderWidth: 2,
+              tension: 0.15
+            },
+            {
+              label: 'Income-Based (balance)',
+              data: ibr.series,
+              borderWidth: 2,
+              borderDash: [6,4],
+              tension: 0.15
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: true } },
+          scales: {
+            x: { title: { display: true, text: 'Months' } },
+            y: { title: { display: true, text: 'Balance (USD)' } }
+          }
+        }
+      });
+    }
+
+    // Wire inputs
+    ['amount','apr','income','capPct','years'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', update);
+    });
+    update();
+  </script>
+</body>
+</html>
