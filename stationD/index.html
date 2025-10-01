@@ -13,9 +13,9 @@
       <h1 class="text-2xl md:text-3xl font-bold">Station D: Standard vs. Income-Based Repayment</h1>
       <p class="text-gray-600 max-w-3xl">
         Compare a <strong>Standard 10-year plan</strong> to an <strong>Income-Based plan</strong> where the payment is capped
-        at a percent of your income (default 10%). Notice how small IBR payments can lead to
-        <em>negative amortization</em> (balance growing because payments don’t cover interest).
-        <span class="text-xs block mt-1">Note: Real IBR uses “discretionary income” and family size; this model uses a simple cap on gross income for teaching.</span>
+        at a percent of income (default 10%). Small IBR payments can cause
+        <em>negative amortization</em> (balance grows when payment &lt; monthly interest).
+        <span class="text-xs block mt-1">Note: Real programs use discretionary income & family size; this is a teaching model.</span>
       </p>
     </header>
 
@@ -64,8 +64,7 @@
     <div class="bg-white border rounded-2xl shadow-sm p-5">
       <h2 class="text-lg font-semibold mb-3">Balance Over Time</h2>
       <p class="text-sm text-gray-600 mb-2">
-        Standard (solid) pays down to $0 by 10 years. Income-Based (dashed) may shrink slowly or even grow if payments
-        don’t cover monthly interest.
+        Standard (solid) pays to $0 by 10 years. Income-Based (dashed) may shrink slowly—or grow if payments don’t cover interest.
       </p>
       <canvas id="balanceChart" height="120"></canvas>
     </div>
@@ -77,7 +76,9 @@
 
   <script>
     // ---------- Helpers ----------
+    const EPS = 0.01; // treat balances under 1 cent as zero
     const fmt = (x) => x.toLocaleString(undefined,{style:'currency',currency:'USD'});
+
     function monthlyPaymentAmortized(P, ratePct, years){
       const n = Math.round(years*12);
       const r = ratePct/100/12;
@@ -85,37 +86,49 @@
       if(r===0) return P/n;
       return P * r / (1 - Math.pow(1+r, -n));
     }
+
+    // Standard: exact 10-year amortization
     function simulateStandard(P, ratePct, years){
       const n = Math.round(years*12), r = ratePct/100/12;
       const pay = monthlyPaymentAmortized(P, ratePct, years);
       let bal = P, totalInt = 0;
       const series = [bal];
-      for(let m=1;m<=n;m++){
+
+      for(let m=1; m<=n; m++){
         const interest = bal * r;
-        const principal = Math.min(pay - interest, bal);
         totalInt += interest;
-        bal = Math.max(0, bal - principal);
+        const principalPay = pay - interest;
+        bal = bal - principalPay;             // = bal + interest - pay
+        if (bal < EPS) bal = 0;               // clamp tiny residuals to zero
         series.push(bal);
-        if(bal<=0) { // pad flat zeros to length n
-          while(series.length <= n) series.push(0);
+        if (bal === 0) {                      // pad out to n months for the chart
+          while (series.length <= n) series.push(0);
           break;
         }
       }
-      return {payment: pay, totalInterest: totalInt, totalPaid: pay*n, series, months: n, paidOff: series[series.length-1]===0};
+
+      const paidOff = series[series.length-1] === 0;
+      return { payment: pay, totalInterest: totalInt, totalPaid: pay*n, series, months: n, paidOff };
     }
+
+    // IBR: payment capped at cap% of income; can cause negative amortization
     function simulateIBR(P, ratePct, years, incomeAnnual, capPct){
       const n = Math.round(years*12), r = ratePct/100/12;
       const monthlyCap = (incomeAnnual * (capPct/100)) / 12;
       let bal = P, totalInt = 0, negAm = false;
       const series = [bal];
-      for(let m=1;m<=n;m++){
+
+      for(let m=1; m<=n; m++){
         const interest = bal * r;
         totalInt += interest;
-        const principalPay = monthlyCap - interest;
-        if(principalPay < 0) { negAm = true; }
-        bal = Math.max(0, bal + interest - monthlyCap);
+        if (monthlyCap < interest) negAm = true;
+        bal = bal + interest - monthlyCap;    // may rise or fall
+        if (bal < EPS) { bal = 0; series.push(bal); break; }
         series.push(bal);
       }
+      // if paid early under IBR, keep flat zeros to end for the chart
+      while (series.length <= n) series.push(0);
+
       return {
         payment: monthlyCap,
         totalInterest: totalInt,
@@ -139,7 +152,7 @@
       const capPct = Number(el('capPct').value);
       const years = Number(el('years').value);
 
-      const std = simulateStandard(P, apr, 10); // Standard is fixed at 10-year amortization
+      const std = simulateStandard(P, apr, 10);      // Standard fixed at 10 years
       const ibr = simulateIBR(P, apr, years, income, capPct);
 
       // Results cards
@@ -152,13 +165,15 @@
           <li>Status at year 10: <strong>${std.paidOff ? "Paid in full" : "Not paid off"}</strong></li>
         </ul>
       `;
+
+      const endIsRed = ibr.endingBalance > EPS; // red whenever balance remains
       el('ibrCard').innerHTML = `
         <h2 class="text-lg font-semibold mb-2">Income-Based Repayment (cap ${capPct}% of income)</h2>
         <ul class="text-sm space-y-1">
           <li>Monthly payment: <strong class="text-amber-700">${fmt(ibr.payment)}</strong></li>
           <li>Total paid (${years} yrs): <strong>${fmt(ibr.totalPaid)}</strong></li>
           <li>Total interest accrued: <strong>${fmt(ibr.totalInterest)}</strong></li>
-          <li>Ending balance after ${years} yrs: <strong class="${ibr.negativeAmortization?'text-red-700':'text-green-700'}">${fmt(ibr.endingBalance)}</strong></li>
+          <li>Ending balance after ${years} yrs: <strong class="${endIsRed ? 'text-red-700' : 'text-green-700'}">${fmt(ibr.endingBalance)}</strong></li>
           ${ibr.negativeAmortization ? '<li class="text-red-700 text-sm">Warning: Negative amortization (payment < monthly interest).</li>' : ''}
         </ul>
       `;
@@ -180,15 +195,15 @@
           <div>
             <div class="text-gray-600">Key idea</div>
             <div>
-              ${ibr.negativeAmortization
-                ? 'Because IBR payments are capped and don’t cover interest, the balance grows over time.'
+              ${ibr.endingBalance > EPS
+                ? 'Capped IBR payments can leave a balance after the period; if payments are below interest, the balance grows.'
                 : 'If IBR payments exceed monthly interest, the balance shrinks—just more slowly than Standard.'}
             </div>
           </div>
         </div>
       `;
 
-      // Chart (balances)
+      // Chart
       const labels = Array.from({length: Math.max(std.series.length, ibr.series.length)}, (_,i)=> i);
       if(chart){ chart.destroy(); }
       chart = new Chart(ctx, {
@@ -196,19 +211,8 @@
         data: {
           labels,
           datasets: [
-            {
-              label: 'Standard (balance)',
-              data: std.series,
-              borderWidth: 2,
-              tension: 0.15
-            },
-            {
-              label: 'Income-Based (balance)',
-              data: ibr.series,
-              borderWidth: 2,
-              borderDash: [6,4],
-              tension: 0.15
-            }
+            { label: 'Standard (balance)', data: std.series, borderWidth: 2, tension: 0.15 },
+            { label: 'Income-Based (balance)', data: ibr.series, borderWidth: 2, borderDash: [6,4], tension: 0.15 }
           ]
         },
         options: {
@@ -223,7 +227,7 @@
     }
 
     // Wire inputs
-    ['amount','apr','income','capPct','years'].forEach(id=>{
+    ['amount','apr','income','capPct','years'].forEach(id=> {
       document.getElementById(id).addEventListener('input', update);
     });
     update();
