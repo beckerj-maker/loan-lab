@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Loan Lab – Station A (Simple vs. Compound)</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+  <div id="root"></div>
+
+  <!-- React 18 UMD and Babel for in-browser JSX transform -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    /** UI bits **/
+    function NumberInput({ label, value, setValue, min = 0, step = 1, suffix = "" }) {
+      return (
+        <label className="block">
+          <span className="text-sm text-gray-700">{label}</span>
+          <div className="mt-1 flex items-center gap-2">
+            <input
+              type="number"
+              value={value}
+              min={min}
+              step={step}
+              onChange={(e) => setValue(Number(e.target.value))}
+              className="w-full md:w-56 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black/30 bg-white"
+            />
+            {suffix && <span className="text-gray-500 text-sm">{suffix}</span>}
+          </div>
+        </label>
+      );
+    }
+
+    function Select({ label, value, setValue, options }) {
+      return (
+        <label className="block">
+          <span className="text-sm text-gray-700">{label}</span>
+          <select
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="mt-1 w-full md:w-56 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black/30 bg-white"
+          >
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+
+    function Card({ title, children, footer }) {
+      return (
+        <div className="bg-white border rounded-2xl shadow-sm p-5">
+          {title && <h2 className="text-lg font-semibold mb-3">{title}</h2>}
+          <div>{children}</div>
+          {footer && <div className="mt-4 pt-3 border-t text-sm text-gray-600">{footer}</div>}
+        </div>
+      );
+    }
+
+    function formatUSD(x) {
+      try { return x.toLocaleString(undefined, { style: "currency", currency: "USD" }); }
+      catch { return "$" + Number(x || 0).toFixed(2); }
+    }
+
+    /** Station A: Simple vs. Compound **/
+    function StationA() {
+      const [principal, setPrincipal] = useState(5000);
+      const [ratePct, setRatePct] = useState(6);
+      const [years, setYears] = useState(3);
+      const [compFreq, setCompFreq] = useState("annual"); // annual, monthly, daily, continuous
+
+      const r = Math.max(0, ratePct) / 100;
+      const t = Math.max(0, years);
+      const P = Math.max(0, principal);
+
+      const n = compFreq === "annual" ? 1
+              : compFreq === "monthly" ? 12
+              : compFreq === "daily" ? 365
+              : "continuous";
+
+      // Simple interest: I = P*r*t, A = P + I
+      const simpleInterest = useMemo(() => P * r * t, [P, r, t]);
+      const simpleTotal = P + simpleInterest;
+
+      // Compound interest: A = P*(1 + r/n)^(n*t) or continuous A = P*e^(r*t)
+      const compoundTotal = useMemo(() => {
+        if (n === "continuous") return P * Math.exp(r * t);
+        return P * Math.pow(1 + r / n, n * t);
+      }, [P, r, t, n]);
+      const compoundInterest = compoundTotal - P;
+
+      const diff = compoundTotal - simpleTotal;
+      const diffPct = simpleTotal > 0 ? (diff / simpleTotal) * 100 : 0;
+
+      function explain() {
+        if (P === 0 || r === 0 || t === 0) return "Set non-zero principal, rate, and time to compare the two models.";
+        if (Math.abs(diff) < 1e-6) return "With these exact inputs, both totals match. Try increasing the compounding frequency or the time to see compound interest pull ahead.";
+        if (diff > 0) return "Compound interest is higher here because interest is added to the balance and then earns more interest (interest-on-interest).";
+        return "Simple total appears higher only under these specific settings. Increase the compounding frequency or time to see how compounding can grow faster.";
+      }
+
+      function reset() {
+        setPrincipal(5000); setRatePct(6); setYears(3); setCompFreq("annual");
+      }
+
+      return (
+        <div className="min-h-screen bg-gray-50 max-w-6xl mx-auto px-4 py-8 space-y-6">
+          <header className="space-y-2">
+            <h1 className="text-2xl md:text-3xl font-bold">Station A: Simple vs. Compound Interest</h1>
+            <p className="text-gray-600 max-w-3xl">
+              Compare a loan that charges <strong>simple interest</strong> (interest only on the original principal) to one that
+              uses <strong>compound interest</strong> (interest can earn more interest). Adjust the numbers and watch the totals.
+            </p>
+          </header>
+
+          <Card title="Set Your Scenario">
+            <div className="grid md:grid-cols-4 gap-4">
+              <NumberInput label="Principal" value={principal} setValue={setPrincipal} step={100} suffix="USD" />
+              <NumberInput label="Annual Interest Rate" value={ratePct} setValue={setRatePct} step={0.25} suffix="%" />
+              <NumberInput label="Time" value={years} setValue={setYears} step={0.5} suffix="years" />
+              <Select
+                label="Compounding (for compound model)"
+                value={compFreq}
+                setValue={setCompFreq}
+                options={[
+                  { value: "annual", label: "Annual" },
+                  { value: "monthly", label: "Monthly" },
+                  { value: "daily", label: "Daily (365)" },
+                  { value: "continuous", label: "Continuous (e^rt)" },
+                ]}
+              />
+            </div>
+            <div className="mt-4">
+              <button onClick={reset} className="px-3 py-1.5 text-sm rounded-lg border bg-white hover:bg-gray-50">
+                Reset to example
+              </button>
+            </div>
+          </Card>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card title="Simple Interest">
+              <ul className="space-y-2 text-sm">
+                <li>Formula: <code>I = P × r × t</code></li>
+                <li>Principal (P): <strong>{formatUSD(P)}</strong></li>
+                <li>Rate (r): <strong>{(r*100).toFixed(2)}%</strong> per year</li>
+                <li>Time (t): <strong>{t}</strong> years</li>
+                <li className="mt-2">Interest (I): <strong>{formatUSD(simpleInterest)}</strong></li>
+                <li>Total to repay (A = P + I): <strong className="text-blue-700">{formatUSD(simpleTotal)}</strong></li>
+              </ul>
+            </Card>
+
+            <Card title="Compound Interest">
+              <ul className="space-y-2 text-sm">
+                <li>
+                  Formula:{" "}
+                  {n === "continuous"
+                    ? <code>A = P × e^(r×t)</code>
+                    : <code>A = P × (1 + r/n)<sup>n×t</sup></code>}
+                </li>
+                <li>Principal (P): <strong>{formatUSD(P)}</strong></li>
+                <li>Rate (r): <strong>{(r*100).toFixed(2)}%</strong> per year</li>
+                <li>
+                  {n === "continuous"
+                    ? <>Compounding: <strong>Continuous</strong></>
+                    : <>Compounds per year (n): <strong>{n}</strong></>}
+                </li>
+                <li>Time (t): <strong>{t}</strong> years</li>
+                <li className="mt-2">Interest (A − P): <strong>{formatUSD(compoundInterest)}</strong></li>
+                <li>Total to repay (A): <strong className="text-emerald-700">{formatUSD(compoundTotal)}</strong></li>
+              </ul>
+            </Card>
+          </div>
+
+          <Card title="Difference">
+            <div className="grid md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <div className="text-gray-600">Compound − Simple</div>
+                <div className="text-xl font-semibold">{formatUSD(diff)}</div>
+              </div>
+              <div>
+                <div className="text-gray-600">% difference vs. Simple total</div>
+                <div className="text-xl font-semibold">{(diffPct).toFixed(2)}%</div>
+              </div>
+              <div className="md:col-span-1 col-span-3">
+                <div className="text-gray-600 mb-1">Why?</div>
+                <div className="text-sm">{explain()}</div>
+              </div>
+            </div>
+          </Card>
+
+          <details className="max-w-3xl mx-auto bg-white border rounded-2xl shadow-sm p-4">
+            <summary className="cursor-pointer font-medium">Show a quick step-by-step for compounding</summary>
+            <div className="text-sm text-gray-700 mt-2 space-y-1">
+              <p><strong>Year 1:</strong> {formatUSD(P)} × (1 + r/n)<sup>n</sup></p>
+              <p><strong>Year 2:</strong> {formatUSD(P)} × (1 + r/n)<sup>2n</sup></p>
+              <p><strong>Year t:</strong> {formatUSD(P)} × (1 + r/n)<sup>n×t</sup></p>
+              <p className="text-gray-600 mt-2">Compounding adds interest to your balance, and the next period’s interest is charged on that larger amount.</p>
+            </div>
+          </details>
+
+          <footer className="py-8 text-center text-xs text-gray-500">
+            © {new Date().getFullYear()} Loan Lab — Station A
+          </footer>
+        </div>
+      );
+    }
+
+    function App() {
+      return <StationA />;
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
